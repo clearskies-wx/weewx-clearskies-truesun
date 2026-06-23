@@ -1,0 +1,6 @@
+0.1.0  2026-06-23
+    - Initial release
+    - XType override for maxSolarRad using pvlib Simplified Solis
+    - CAMS AOD background fetch via cdsapi
+    - Station-derived precipitable water from outTemp/outHumidity
+    - Fallback to configurable AOD700 when CAMS unavailable
