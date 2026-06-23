@@ -245,13 +245,17 @@ class _CAMSFetchThread(threading.Thread):
 
         self._ensure_cdsapirc(self._api_key)
 
-        today = datetime.date.today().isoformat()
+        # Use yesterday's date — CAMS forecasts have ~8h publication delay,
+        # so today's 00:00 run may not be available yet.  AOD changes slowly;
+        # yesterday's forecast is perfectly valid.
+        yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+        date_range = f"{yesterday}/{yesterday}"
 
-        # Small bounding box around the station (±0.5°)
-        north = min(self._lat + 0.5, 90.0)
-        south = max(self._lat - 0.5, -90.0)
-        east = self._lon + 0.5
-        west = self._lon - 0.5
+        # Bounding box: round to nearest integer degree (CAMS grid is 0.4°).
+        north = min(int(self._lat) + 1, 90)
+        south = max(int(self._lat), -90)
+        east = int(self._lon)
+        west = int(self._lon) - 1
 
         with tempfile.TemporaryDirectory(prefix="truesun_cams_") as tmp_dir:
             download_path = os.path.join(tmp_dir, "cams_aod.nc")
@@ -261,7 +265,7 @@ class _CAMSFetchThread(threading.Thread):
                 "cams-global-atmospheric-composition-forecasts",
                 {
                     "variable": "total_aerosol_optical_depth_550nm",
-                    "date": today,
+                    "date": date_range,
                     "time": "00:00",
                     "leadtime_hour": [str(h) for h in range(0, 25, 3)],
                     "type": "forecast",
@@ -284,7 +288,7 @@ class _CAMSFetchThread(threading.Thread):
             "AOD550=%.4f → AOD700=%.4f (date=%s)",
             aod550_median,
             aod700,
-            today,
+            yesterday,
         )
 
     @staticmethod
@@ -393,11 +397,16 @@ class ClearSkiesTruesunService(weewx.engine.StdService):
         latitude = float(stn.get("latitude", 0))
         longitude = float(stn.get("longitude", 0))
 
-        # weewx stores altitude as "value, unit" string like "40, foot"
-        altitude_str = str(stn.get("altitude", "0, meter"))
-        alt_parts = altitude_str.split(",")
-        alt_val = float(alt_parts[0].strip())
-        alt_unit = alt_parts[1].strip().lower() if len(alt_parts) > 1 else "meter"
+        # weewx stores altitude as "40, foot" — configobj parses this as a
+        # list ['40', 'foot'] or a string depending on version.
+        altitude_raw = stn.get("altitude", ["0", "meter"])
+        if isinstance(altitude_raw, (list, tuple)):
+            alt_val = float(altitude_raw[0])
+            alt_unit = str(altitude_raw[1]).strip().lower() if len(altitude_raw) > 1 else "meter"
+        else:
+            alt_parts = str(altitude_raw).split(",")
+            alt_val = float(alt_parts[0].strip())
+            alt_unit = alt_parts[1].strip().lower() if len(alt_parts) > 1 else "meter"
         altitude_m = alt_val * 0.3048 if alt_unit in ("foot", "feet") else alt_val
 
         # -- Thread-safe AOD cache --

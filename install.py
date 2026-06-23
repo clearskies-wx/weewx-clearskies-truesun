@@ -10,7 +10,10 @@ Remove:   weectl extension uninstall clearskies_truesun
 from io import StringIO
 
 import configobj
-from weewx.extensioninstaller import ExtensionInstaller
+try:
+    from weecfg.extension import ExtensionInstaller
+except ImportError:
+    from weewx.extensioninstaller import ExtensionInstaller
 
 
 def loader():
