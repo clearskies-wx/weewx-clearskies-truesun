@@ -1,0 +1,39 @@
+name: DCO
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  dco:
+    name: Verify DCO sign-off
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Signed-off-by on every PR commit
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          missing=()
+          for commit in $(git rev-list "$BASE..$HEAD"); do
+            if ! git log -1 --format=%B "$commit" | grep -qE '^Signed-off-by: .+ <.+@.+>$'; then
+              missing+=("$commit")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing DCO sign-off on the following commits:"
+            for c in "${missing[@]}"; do
+              subject=$(git log -1 --format=%s "$c")
+              echo "  $c  $subject"
+            done
+            echo ""
+            echo "Add a Signed-off-by trailer with: git commit --amend -s   (or rebase with -s)."
+            echo "See https://developercertificate.org/"
+            exit 1
+          fi
+          echo "All PR commits carry DCO sign-off. (Counted commits = $(git rev-list --count "$BASE..$HEAD"))"

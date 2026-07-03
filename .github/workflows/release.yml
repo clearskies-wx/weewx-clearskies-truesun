@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Create extension tarball
+        run: |
+          set -eu
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCHIVE="weewx-clearskies-truesun-${VERSION}.tar.gz"
+          tar czf "${ARCHIVE}" \
+            --transform "s,^,weewx-clearskies-truesun-${VERSION}/," \
+            --exclude='.git*' --exclude='__pycache__' \
+            install.py README.md changelog bin/
+          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ARCHIVE }}
+          generate_release_notes: true
